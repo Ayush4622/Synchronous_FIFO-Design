@@ -1,0 +1,113 @@
+`timescale 1ns / 1ps
+
+// Declaring Module
+module fifo_mem(data_out,fifo_full, fifo_empty,clk, rst_n, wr, rd, data_in);  
+  input wr, rd, clk, rst_n;  
+  input[7:0] data_in;   
+  output[7:0] data_out;  
+  output fifo_full, fifo_empty;  
+  wire[4:0] wptr,rptr;  
+  wire fifo_we,fifo_rd;   
+
+/*
+ Main module
+I have declared 5 input pins and 3 output pins.  rst_n is in negative logic means when rst_n = 0 then it will reset whole fifo. Also 4 wire wptr , rptr , fifo_we , fifo_rd.
+I have declared 5 bit of read and write pointer . 4 bit for traversing all 16 locations and 5th bit for checking whether fifo is full or empty.
+When fifo_we=1 then we will write and when fifo_rd=1 then read.
+*/  
+//Instantiation of all 4 Modules
+
+  write_pointer top1(wptr,fifo_we,wr,fifo_full,clk,rst_n);  
+  read_pointer top2(rptr,fifo_rd,rd,fifo_empty,clk,rst_n);  
+  memory_array top3(data_out, data_in, clk,fifo_we, wptr,rptr);  
+  status_signal top4(fifo_full, fifo_empty,wr, rd, fifo_we, fifo_rd, wptr,rptr,clk,rst_n);  
+ endmodule
+  
+// Declaring Memory of size 16*8 also reading and writing operation
+ module memory_array(data_out, data_in, clk,fifo_we, wptr,rptr);  
+  input[7:0] data_in;  
+  input clk,fifo_we;  
+  input[4:0] wptr,rptr;  
+  output wire[7:0] data_out;  
+  reg[7:0] data_out2[15:0];   
+  always @(posedge clk)  
+  begin  
+   if(fifo_we)   
+      data_out2[wptr[3:0]] <=data_in ;  
+  end  
+  assign data_out = data_out2[rptr[3:0]];  
+ endmodule  
+
+/*
+Memory module
+I have declared memory of size 16*8 having 5 input pin and 1 output pin. When positive edge of clock comes then always block called. When fifo_we high then where write pointer is indicating write data there. And where read pointer is indicating take out data from there.
+*/
+
+// module for read pointer and fifo_rd
+ module read_pointer(rptr,fifo_rd,rd,fifo_empty,clk,rst_n);  
+  input rd,fifo_empty,clk,rst_n;  
+  output reg[4:0] rptr;  
+  output fifo_rd;  
+  assign fifo_rd = (~fifo_empty)& rd;  
+  always @(posedge clk or negedge  rst_n)  
+  begin  
+   if(~rst_n) rptr <= 5'b00000;  
+   else if(fifo_rd)  
+    rptr <= rptr + 5'b00001;  
+   else  
+    rptr <= rptr;  
+  end  
+ endmodule  
+
+/*
+Read pointer module
+I have declared read pointer module for generating fifo_rd signal and updating the value of rptr(read pointer).
+*/
+
+
+//module for write pointer and fifo_we
+ module write_pointer(wptr,fifo_we,wr,fifo_full,clk,rst_n);  
+  input wr,fifo_full,clk,rst_n;  
+  output reg[4:0] wptr;  
+  output fifo_we;  
+  assign fifo_we = (~fifo_full)&wr;  
+  always @(posedge clk or negedge rst_n)  
+  begin  
+   if(~rst_n) wptr <= 5'b00000;  
+   else if(fifo_we)  
+    wptr <= wptr + 5'b00001;  
+   else  
+    wptr <= wptr;  
+  end  
+ endmodule
+
+/*
+Write pointer module
+I have declared write pointer module for generating fifo_we signal and updating the value of wptr(write pointer).
+*/
+
+
+ module status_signal(fifo_full, fifo_empty,wr,rd, fifo_we, fifo_rd, wptr,rptr,clk,rst_n);  
+  input wr, rd, fifo_we, fifo_rd,clk,rst_n;  
+  input[4:0] wptr, rptr;  
+  output fifo_full, fifo_empty;  
+  wire fbit_comp;  
+  wire pointer_equal;  
+  wire[4:0] pointer_result;  
+  reg fifo_full, fifo_empty;  
+  assign fbit_comp = wptr[4] ^ rptr[4];  
+  assign pointer_equal = (wptr[3:0] - rptr[3:0]) ? 0:1;  
+  assign pointer_result = wptr[4:0] - rptr[4:0];  
+  always @(*)  
+  begin  
+   fifo_full =fbit_comp & pointer_equal;  
+   fifo_empty = (~fbit_comp) & pointer_equal;  
+  
+  end  
+ endmodule
+
+/*
+Status module
+Status signal module is for generating status signal fifo_full and fifo_empty.
+When wptr=rptr then fifo empty and when last 4 bit of rptr and wptr is equal but MSB is unequal then fifo full.
+*/
